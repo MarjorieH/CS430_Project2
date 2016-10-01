@@ -36,10 +36,7 @@ static inline void normalize(double* v) {
 
 
 double sphere_intersection(double* Ro, double* Rd, double* C, double r) {
-  // A = Xd^2 + Yd^2 + Zd^2
-  // B = 2 * (Xd * (X0 - Xc) + Yd * (Y0 - Yc) + Zd * (Z0 - Zc))
-  // C = (X0 - Xc)^2 + (Y0 - Yc)^2 + (Z0 - Zc)^2 - Sr^2
-  //
+
   double a = sqr(Rd[0]) + sqr(Rd[1]) + sqr(Rd[2]);
   double b = 2 * (Rd[0] * (Ro[0] - C[0]) + Rd[1] * (Ro[1] - C[1]) + Rd[2] * (Ro[2] - C[2]));
   double c = sqr(Ro[0] - C[0]) + sqr(Ro[1] - C[1]) + sqr(Ro[2] - C[2]) - sqr(r);
@@ -59,18 +56,32 @@ double sphere_intersection(double* Ro, double* Rd, double* C, double r) {
 }
 
 
+double plane_intersection(double* Ro, double* Rd, double* P, double* N) {
+// t = -(AX0 + BY0 + CZ0 + D) / (AXd + BYd + CZd)
+// D = -(N • P)
+  double D = -(N[0] * P[0] + N[1] * P[1] + N[2] * P[2]); // distance from origin to plane
+  double t = -(N[0] * Ro[0] + N[1] * Ro[1] + N[2] * Ro[2] + D) /
+              (N[0] * Rd[0] + N[1] * Rd[1] + N[2] * Rd[2]);
+
+  if (t >= 0) return t;
+
+  return -1; // no intersection
+}
+
 
 int main() {
 
   Object** objects;
   objects = malloc(sizeof(Object*) * 2);
   objects[0] = malloc(sizeof(Object));
-  objects[0]->kind = 1;
-  objects[0]->sphere.radius = 5;
+  objects[0]->kind = 0;
+  objects[0]->plane.normal[0] = 0;
+  objects[0]->plane.normal[1] = 1;
+  objects[0]->plane.normal[2] = 1;
   // object[0]->teapot.handle_length = 2;
-  objects[0]->sphere.position[0] = 0;
-  objects[0]->sphere.position[1] = 0;
-  objects[0]->sphere.position[2] = 20;
+  objects[0]->plane.position[0] = 0;
+  objects[0]->plane.position[1] = 0;
+  objects[0]->plane.position[2] = 20;
   objects[1] = NULL;
 
   double cx = 0;
@@ -97,10 +108,13 @@ int main() {
         double t = 0;
 
         switch(objects[i]->kind) {
+          case 0:
+            t = plane_intersection(Ro, Rd, objects[i]->plane.position, objects[i]->plane.normal);
+            break;
           case 1:
             t = sphere_intersection(Ro, Rd, objects[i]->sphere.position, objects[i]->sphere.radius);
             break;
-            default:
+          default:
             // Horrible error
             exit(1);
           }
