@@ -16,6 +16,17 @@ typedef struct RGBpixel {
 int numPixels; // total number of pixels in image (w * h)
 RGBpixel *pixmap; // array of pixels to hold the image data
 
+/* Writes P3 formatted data to a file,
+ * Takes in the file handler of the file to be written to */
+void writeP3(FILE* fh, int w, int h) {
+  fprintf(fh, "P%c\n%i %i\n%i\n", format, w, h, maxColor); // Write out header
+  for (int i = 0; i < numPixels; i++) { // Write out Pixel data
+    fprintf(fh, "%i %i %i\n", pixmap[i].R, pixmap[i].G, pixmap[i].B);
+  }
+  fclose(fh);
+}
+
+
 // Structure to hold object data in the scene
 typedef struct {
   int kind; // 0 = plane, 1 = sphere
@@ -187,6 +198,9 @@ int main() {
     }
     printf("\n");
   }
+
+  FILE* fh = fopen("test.ppm", "w");
+  writeP3(fh, N, M);
 
   return 0;
 }
