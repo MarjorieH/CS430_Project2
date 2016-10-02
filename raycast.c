@@ -4,11 +4,22 @@
 #include <string.h>
 #include <math.h>
 
+#define maxColor 255
+#define format '3'
+
+// Structure to hold RGB pixel data
+typedef struct RGBpixel {
+  unsigned char R, G, B;
+} RGBpixel;
+
+// Global variables to hold image data
+int numPixels; // total number of pixels in image (w * h)
+RGBpixel *pixmap; // array of pixels to hold the image data
+
 // Structure to hold object data in the scene
 typedef struct {
   int kind; // 0 = plane, 1 = sphere
-  char color;
-  //double color[3];
+  double color[3];
   union {
     struct {
       char color;
@@ -59,8 +70,6 @@ double sphere_intersection(double* Ro, double* Rd, double* C, double r) {
 
 
 double plane_intersection(double* Ro, double* Rd, double* P, double* N) {
-  // t = -(AX0 + BY0 + CZ0 + D) / (AXd + BYd + CZd)
-  // D = -(N • P)
   double D = -(N[0] * P[0] + N[1] * P[1] + N[2] * P[2]); // distance from origin to plane
   double t = -(N[0] * Ro[0] + N[1] * Ro[1] + N[2] * Ro[2] + D) /
   (N[0] * Rd[0] + N[1] * Rd[1] + N[2] * Rd[2]);
@@ -78,27 +87,35 @@ int main() {
 
   objects[0] = malloc(sizeof(Object));
   objects[0]->kind = 1;
-  objects[0]->color = '&';
+  objects[0]->color[0] = 1.0;
+  objects[0]->color[1] = 0;
+  objects[0]->color[2] = 0;
   objects[0]->sphere.radius = 1;
   objects[0]->sphere.position[0] = 0;
-  objects[0]->sphere.position[1] = -1;
-  objects[0]->sphere.position[2] = 11;
+  objects[0]->sphere.position[1] = 0;
+  objects[0]->sphere.position[2] = 10;
+
+  // objects[1] = malloc(sizeof(Object));
+  // objects[1]->kind = 1;
+  // objects[1]->color[0] = 0.5;
+  // objects[1]->color[1] = 0;
+  // objects[1]->color[2] = 0.8;
+  // objects[1]->sphere.radius = 1;
+  // objects[1]->sphere.position[0] = 0;
+  // objects[1]->sphere.position[1] = 2;
+  // objects[1]->sphere.position[2] = 2;
 
   objects[1] = malloc(sizeof(Object));
-  objects[1]->kind = 1;
-  objects[1]->color = '*';
-  objects[1]->sphere.radius = 1;
-  objects[1]->sphere.position[0] = 0;
-  objects[1]->sphere.position[1] = 2;
-  objects[1]->sphere.position[2] = 10;
-
-  // objects[0]->kind = 0;
-  // objects[0]->plane.normal[0] = 0;
-  // objects[0]->plane.normal[1] = 1;
-  // objects[0]->plane.normal[2] = 1;
-  // objects[0]->plane.position[0] = 0;
-  // objects[0]->plane.position[1] = 0;
-  // objects[0]->plane.position[2] = 20;
+  objects[1]->kind = 0;
+  objects[1]->color[0] = 0;
+  objects[1]->color[1] = 1.0;
+  objects[1]->color[2] = 0;
+  objects[1]->plane.normal[0] = 0;
+  objects[1]->plane.normal[1] = 1;
+  objects[1]->plane.normal[2] = 1;
+  objects[1]->plane.position[0] = 0;
+  objects[1]->plane.position[1] = 0;
+  objects[1]->plane.position[2] = 20;
 
   objects[2] = NULL;
 
@@ -108,14 +125,21 @@ int main() {
   double h = 0.7;
   double w = 0.7;
 
-  int M = 20;
-  int N = 20;
+  int M = 100; // height in pixels
+  int N = 100; // width in pixels
+
+  numPixels = M * N;
 
   double pixheight = h / M;
   double pixwidth = w / N;
+
+  pixmap = malloc(sizeof(RGBpixel) * numPixels);
+  int pixIndex = 0;
   for (int y = 0; y < M; y++) { // for each row
     double y_coord = cy - (h/2) + pixheight * (y + 0.5); // y coord of the row
+
     for (int x = 0; x < N; x++) { // for each column
+
       double x_coord = cx - (w/2) + pixwidth * (x + 0.5); // x coord of the column
       double Ro[3] = {cx, cy, 0}; // position of camera
       double Rd[3] = {x_coord, y_coord, 1}; // position of pixel
@@ -126,7 +150,7 @@ int main() {
       for (int i = 0; objects[i] != NULL; i++) {
         double t = 0;
 
-        switch(objects[i]->kind) {
+        switch (objects[i]->kind) {
           case 0:
           t = plane_intersection(Ro, Rd, objects[i]->plane.position, objects[i]->plane.normal);
           break;
@@ -143,12 +167,23 @@ int main() {
           memcpy(object, objects[i], sizeof(Object));
         }
       }
-      if (best_t > 0 && best_t != INFINITY) {
-        printf(&object->color);
-      } else {
-        printf(".");
-      }
 
+      if (best_t > 0 && best_t != INFINITY) {
+        pixmap[pixIndex].R = (unsigned char)(object->color[0] * maxColor);
+        pixmap[pixIndex].G = (unsigned char)(object->color[1] * maxColor);
+        pixmap[pixIndex].B = (unsigned char)(object->color[2] * maxColor);
+        //printf("%c", pixmap[x * y].R);
+        //printf("[%i, %i, %i] ", pixmap[x * y].R, pixmap[x * y].G, pixmap[x * y].B);
+      }
+      else {
+        pixmap[pixIndex].R = 255;
+        pixmap[pixIndex].G = 255;
+        pixmap[pixIndex].B = 255;
+        //printf("[%i, %i, %i] ", pixmap[x * y].R, pixmap[x * y].G, pixmap[x * y].B);
+      }
+      pixIndex++;
+      //printf(" %i ", x*y);
+      printf("[%i, %i, %i] ", pixmap[x * y].R, pixmap[x * y].G, pixmap[x * y].B);
     }
     printf("\n");
   }
