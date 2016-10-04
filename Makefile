@@ -1,9 +1,5 @@
-all: jsonparser.c
-	gcc jsonparser.c -o jsonparser
+all: raycast.c
+	gcc raycast.c -o raycast
 
 clean:
-	rm -rf jsonparser *~
-
-test:
-	./jsonparser valid.json
-	./jsonparser invalid.json
+	rm -rf raycast *~

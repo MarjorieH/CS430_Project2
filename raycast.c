@@ -1,66 +1,18 @@
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
+#include "raycast.h"
 
-#define maxColor 255
-#define format '3'
-
-// Structure to hold RGB pixel data
-typedef struct RGBpixel {
-  unsigned char R, G, B;
-} RGBpixel;
-
-// Global variables to hold image data
-int numPixels; // total number of pixels in image (w * h)
-RGBpixel *pixmap; // array of pixels to hold the image data
-
-/* Writes P3 formatted data to a file,
- * Takes in the file handler of the file to be written to */
-void writeP3(FILE* fh, int w, int h) {
-  fprintf(fh, "P%c\n%i %i\n%i\n", format, w, h, maxColor); // Write out header
+// Writes P3 formatted data to a file
+// Takes in the file handler of the file to be written to
+void writeP3(FILE* fh) {
+  fprintf(fh, "P%c\n%i %i\n%i\n", format, N, M, maxColor); // Write out header
   for (int i = 0; i < numPixels; i++) { // Write out Pixel data
     fprintf(fh, "%i %i %i\n", pixmap[i].R, pixmap[i].G, pixmap[i].B);
   }
   fclose(fh);
 }
 
-
-// Structure to hold object data in the scene
-typedef struct {
-  int kind; // 0 = plane, 1 = sphere
-  double color[3];
-  union {
-    struct {
-      char color;
-      double position[3];
-      double normal[3];
-    } plane;
-    struct {
-      char color;
-      double position[3];
-      double radius;
-    } sphere;
-  };
-} Object;
-
-
-static inline double sqr(double v) {
-  return v*v;
-}
-
-
-static inline void normalize(double* v) {
-  double len = sqrt(sqr(v[0]) + sqr(v[1]) + sqr(v[2]));
-  v[0] /= len;
-  v[1] /= len;
-  v[2] /= len;
-}
-
-
+// Calculate if the ray Ro->Rd will intersect with a sphere of center C and radius R
+// Return distance to intersection
 double sphere_intersection(double* Ro, double* Rd, double* C, double r) {
-
   double a = sqr(Rd[0]) + sqr(Rd[1]) + sqr(Rd[2]);
   double b = 2 * (Rd[0] * (Ro[0] - C[0]) + Rd[1] * (Ro[1] - C[1]) + Rd[2] * (Ro[2] - C[2]));
   double c = sqr(Ro[0] - C[0]) + sqr(Ro[1] - C[1]) + sqr(Ro[2] - C[2]) - sqr(r);
@@ -79,7 +31,8 @@ double sphere_intersection(double* Ro, double* Rd, double* C, double r) {
   return -1;
 }
 
-
+// Calculate if the ray Ro->Rd will intersect with a plane of position P and normal N
+// Return distance to intersection
 double plane_intersection(double* Ro, double* Rd, double* P, double* N) {
   double D = -(N[0] * P[0] + N[1] * P[1] + N[2] * P[2]); // distance from origin to plane
   double t = -(N[0] * Ro[0] + N[1] * Ro[1] + N[2] * Ro[2] + D) /
@@ -90,69 +43,28 @@ double plane_intersection(double* Ro, double* Rd, double* P, double* N) {
   return -1; // no intersection
 }
 
+// Cast the objects in the scene and write the output image to the file
+void raycast(char* filename) {
 
-int main() {
-
-  Object** objects;
-  objects = malloc(sizeof(Object*) * 3);
-
-  objects[0] = malloc(sizeof(Object));
-  objects[0]->kind = 1;
-  objects[0]->color[0] = 1.0;
-  objects[0]->color[1] = 0;
-  objects[0]->color[2] = 0;
-  objects[0]->sphere.radius = 1;
-  objects[0]->sphere.position[0] = 0;
-  objects[0]->sphere.position[1] = 0;
-  objects[0]->sphere.position[2] = 10;
-
-  // objects[1] = malloc(sizeof(Object));
-  // objects[1]->kind = 1;
-  // objects[1]->color[0] = 0.5;
-  // objects[1]->color[1] = 0;
-  // objects[1]->color[2] = 0.8;
-  // objects[1]->sphere.radius = 1;
-  // objects[1]->sphere.position[0] = 0;
-  // objects[1]->sphere.position[1] = 2;
-  // objects[1]->sphere.position[2] = 2;
-
-  objects[1] = malloc(sizeof(Object));
-  objects[1]->kind = 0;
-  objects[1]->color[0] = 0;
-  objects[1]->color[1] = 1.0;
-  objects[1]->color[2] = 0;
-  objects[1]->plane.normal[0] = 0;
-  objects[1]->plane.normal[1] = 1;
-  objects[1]->plane.normal[2] = 1;
-  objects[1]->plane.position[0] = 0;
-  objects[1]->plane.position[1] = 0;
-  objects[1]->plane.position[2] = 20;
-
-  objects[2] = NULL;
-
-  // camera
+  // camera position
   double cx = 0;
   double cy = 0;
-  double h = 0.7;
-  double w = 0.7;
-
-  int M = 100; // height in pixels
-  int N = 100; // width in pixels
+  double cz = 0;
 
   numPixels = M * N;
 
-  double pixheight = h / M;
-  double pixwidth = w / N;
+  double pixheight = ch / M;
+  double pixwidth = cw / N;
 
   pixmap = malloc(sizeof(RGBpixel) * numPixels);
   int pixIndex = 0;
   for (int y = 0; y < M; y++) { // for each row
-    double y_coord = cy - (h/2) + pixheight * (y + 0.5); // y coord of the row
+    double y_coord = cy - (ch/2) + pixheight * (y + 0.5); // y coord of the row
 
     for (int x = 0; x < N; x++) { // for each column
 
-      double x_coord = cx - (w/2) + pixwidth * (x + 0.5); // x coord of the column
-      double Ro[3] = {cx, cy, 0}; // position of camera
+      double x_coord = cx - (cw/2) + pixwidth * (x + 0.5); // x coord of the column
+      double Ro[3] = {cx, cy, cz}; // position of camera
       double Rd[3] = {x_coord, y_coord, 1}; // position of pixel
       normalize(Rd); // normalize (P - Ro)
 
@@ -178,29 +90,237 @@ int main() {
           memcpy(object, objects[i], sizeof(Object));
         }
       }
-
+      // place the pixel into the pixmap array
       if (best_t > 0 && best_t != INFINITY) {
         pixmap[pixIndex].R = (unsigned char)(object->color[0] * maxColor);
         pixmap[pixIndex].G = (unsigned char)(object->color[1] * maxColor);
         pixmap[pixIndex].B = (unsigned char)(object->color[2] * maxColor);
-        //printf("%c", pixmap[x * y].R);
-        //printf("[%i, %i, %i] ", pixmap[x * y].R, pixmap[x * y].G, pixmap[x * y].B);
       }
-      else {
+      else { // make background pixels white
         pixmap[pixIndex].R = 255;
         pixmap[pixIndex].G = 255;
         pixmap[pixIndex].B = 255;
-        //printf("[%i, %i, %i] ", pixmap[x * y].R, pixmap[x * y].G, pixmap[x * y].B);
       }
       pixIndex++;
-      //printf(" %i ", x*y);
-      printf("[%i, %i, %i] ", pixmap[x * y].R, pixmap[x * y].G, pixmap[x * y].B);
+      //printf("[%i, %i, %i] ", pixmap[x * y].R, pixmap[x * y].G, pixmap[x * y].B);
     }
-    printf("\n");
+    //printf("\n");
+  }
+  // finished created image data, write out
+  FILE* fh = fopen(filename, "w");
+  writeP3(fh);
+}
+
+// next_c() wraps the getc() function and provides error checking and line
+// number maintenance
+int next_c(FILE* json) {
+  int c = fgetc(json);
+  #ifdef DEBUG
+  printf("next_c: '%c'\n", c);
+  #endif
+  if (c == '\n') {
+    line += 1;
+  }
+  if (c == EOF) {
+    fprintf(stderr, "Error: Unexpected end of file on line number %d.\n", line);
+    exit(1);
+  }
+  return c;
+}
+
+// expect_c() checks that the next character is d.  If it is not it emits
+// an error.
+void expect_c(FILE* json, int d) {
+  int c = next_c(json);
+  if (c == d) return;
+  fprintf(stderr, "Error: Expected '%c' on line %d.\n", d, line);
+  exit(1);
+}
+
+// skip_ws() skips white space in the file.
+void skip_ws(FILE* json) {
+  int c = next_c(json);
+  while (isspace(c)) {
+    c = next_c(json);
+  }
+  ungetc(c, json);
+}
+
+// next_string() gets the next string from the file handle and emits an error
+// if a string can not be obtained.
+char* next_string(FILE* json) {
+  char buffer[129];
+  int c = next_c(json);
+  if (c != '"') {
+    fprintf(stderr, "Error: Expected string on line %d.\n", line);
+    exit(1);
+  }
+  c = next_c(json);
+  int i = 0;
+  while (c != '"') {
+    if (i >= 128) {
+      fprintf(stderr, "Error: Strings longer than 128 characters in length are not supported.\n");
+      exit(1);
+    }
+    if (c == '\\') {
+      fprintf(stderr, "Error: Strings with escape codes are not supported.\n");
+      exit(1);
+    }
+    if (c < 32 || c > 126) {
+      fprintf(stderr, "Error: Strings may contain only ascii characters.\n");
+      exit(1);
+    }
+    buffer[i] = c;
+    i += 1;
+    c = next_c(json);
+  }
+  buffer[i] = 0;
+  return strdup(buffer);
+}
+
+double next_number(FILE* json) {
+  double value;
+  fscanf(json, "%lf", &value);
+  // Error check this..
+  return value;
+}
+
+double* next_vector(FILE* json) {
+  double* v = malloc(3*sizeof(double));
+  expect_c(json, '[');
+  skip_ws(json);
+  v[0] = next_number(json);
+  skip_ws(json);
+  expect_c(json, ',');
+  skip_ws(json);
+  v[1] = next_number(json);
+  skip_ws(json);
+  expect_c(json, ',');
+  skip_ws(json);
+  v[2] = next_number(json);
+  skip_ws(json);
+  expect_c(json, ']');
+  return v;
+}
+
+void read_scene(char* filename) {
+  int c;
+  FILE* json = fopen(filename, "r");
+
+  objects = malloc(sizeof(Object*) * 128); // allocate enough space for the scene
+
+
+  if (json == NULL) {
+    fprintf(stderr, "Error: Could not open file \"%s\"\n", filename);
+    exit(1);
   }
 
-  FILE* fh = fopen("test.ppm", "w");
-  writeP3(fh, N, M);
+  skip_ws(json);
+  expect_c(json, '['); // Find the beginning of the list
+  skip_ws(json);
 
-  return 0;
+  // Find the objects
+  while (1) {
+    c = fgetc(json);
+    if (c == ']') {
+      fprintf(stderr, "Error: This is the worst scene file EVER.\n");
+      fclose(json);
+      return;
+    }
+    if (c == '{') {
+      skip_ws(json);
+
+      // Parse the object
+      char* key = next_string(json);
+      if (strcmp(key, "type") != 0) {
+        fprintf(stderr, "Error: Expected \"type\" key on line number %d.\n", line);
+        exit(1);
+      }
+
+      skip_ws(json);
+      expect_c(json, ':');
+      skip_ws(json);
+
+      char* value = next_string(json);
+
+      if (strcmp(value, "camera") == 0) {
+        // do something with camera
+      }
+      else if (strcmp(value, "sphere") == 0) {
+        // do something with sphere
+      }
+      else if (strcmp(value, "plane") == 0) {
+        // do something with plane
+      }
+      else {
+        fprintf(stderr, "Error: Unknown type, \"%s\", on line number %d.\n", value, line);
+        exit(1);
+      }
+
+      skip_ws(json);
+
+      while (1) {
+        // , }
+        c = next_c(json);
+        if (c == '}') {
+          // stop parsing this object
+          break;
+        } else if (c == ',') {
+          // read another field
+          skip_ws(json);
+          char* key = next_string(json);
+          skip_ws(json);
+          expect_c(json, ':');
+          skip_ws(json);
+          if ((strcmp(key, "width") == 0) ||
+              (strcmp(key, "height") == 0) ||
+              (strcmp(key, "radius") == 0)) {
+            double value = next_number(json);
+          }
+          else if ((strcmp(key, "color") == 0) ||
+                   (strcmp(key, "position") == 0) ||
+                   (strcmp(key, "normal") == 0)) {
+            double* value = next_vector(json);
+          }
+          else {
+            fprintf(stderr, "Error: Unknown property, \"%s\", on line %d.\n",
+            key, line);
+            //char* value = next_string(json);
+          }
+          skip_ws(json);
+        }
+        else {
+          fprintf(stderr, "Error: Unexpected value on line %d\n", line);
+          exit(1);
+        }
+      }
+      skip_ws(json);
+      c = next_c(json);
+      if (c == ',') {
+        skip_ws(json);
+      }
+      else if (c == ']') {
+        fclose(json);
+        return;
+      }
+      else {
+        fprintf(stderr, "Error: Expecting ',' or ']' on line %d.\n", line);
+        exit(1);
+      }
+    }
+  }
+}
+
+int main(int args, char** argv) {
+
+  if (args > 4) {
+    fprintf(stderr, "Usage: raycast width height input.json output.ppm");
+    exit(1);
+  }
+
+  M = (int)argv[2]; // save height
+  N = (int)argv[1]; // save width
+  read_scene(argv[3]);
+  raycast(argv[4]);
+  return 0; // exit success
 }
