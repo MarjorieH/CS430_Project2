@@ -58,8 +58,6 @@ void skip_ws(FILE* json);
 double sphere_intersection(double* Ro, double* Rd, double* C, double r);
 void writeP3(FILE* fh);
 
-void print_objs();
-
 // static inline functions
 static inline double sqr(double v) {
   return v*v;

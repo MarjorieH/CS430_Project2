@@ -61,7 +61,7 @@ void raycast(char* filename) {
 
   int pixIndex = 0;
   for (int y = 0; y < M; y++) { // for each row
-    double y_coord = cy - (ch/2) + pixheight * (y + 0.5); // y coord of the row
+    double y_coord = -(cy - (ch/2) + pixheight * (y + 0.5)); // y coord of the row
 
     for (int x = 0; x < N; x++) { // for each column
 
@@ -100,14 +100,12 @@ void raycast(char* filename) {
         pixmap[pixIndex].B = (unsigned char)(object->color[2] * maxColor);
       }
       else { // make background pixels white
-        pixmap[pixIndex].R = 255;
-        pixmap[pixIndex].G = 255;
-        pixmap[pixIndex].B = 255;
+        pixmap[pixIndex].R = 0;
+        pixmap[pixIndex].G = 0;
+        pixmap[pixIndex].B = 0;
       }
       pixIndex++;
-      //printf("[%i, %i, %i] ", pixmap[x * y].R, pixmap[x * y].G, pixmap[x * y].B);
     }
-    //printf("\n");
   }
   // finished created image data, write out
   FILE* fh = fopen(filename, "w");
@@ -231,6 +229,8 @@ void read_scene(char* filename) {
       return;
     }
     if (c == '{') {
+      Object* object;
+      object = malloc(sizeof(Object));
       skip_ws(json);
       // Parse the object
       char* key = next_string(json);
@@ -243,17 +243,18 @@ void read_scene(char* filename) {
       skip_ws(json);
       char* value = next_string(json);
       if (strcmp(value, "camera") == 0) {
-        // if (camFlag == 1) {
-        //   fprintf(stderr, "Error: Too many camera objects, see line: %d.\n", line);
-        //   exit(1);
-        // }
+        if (camFlag == 1) {
+          fprintf(stderr, "Error: Too many camera objects, see line: %d.\n", line);
+          exit(1);
+        }
+        object->kind = -1; // dummy kind for camera
         camFlag = 1;
       }
       else if (strcmp(value, "sphere") == 0) {
-        objects[numObjects]->kind = 1;
+        object->kind = 1;
       }
       else if (strcmp(value, "plane") == 0) {
-        objects[numObjects]->kind = 0;
+        object->kind = 0;
       }
       else {
         fprintf(stderr, "Error: Unknown type, \"%s\", on line number %d.\n", value, line);
@@ -277,7 +278,7 @@ void read_scene(char* filename) {
           skip_ws(json);
           if (strcmp(key, "width") == 0) {
             double value = next_number(json);
-            if (camFlag == 1) {
+            if (object->kind < 0 && camFlag == 1) {
               cw = value;
             }
             else {
@@ -287,7 +288,7 @@ void read_scene(char* filename) {
           }
           else if (strcmp(key, "height") == 0) {
             double value = next_number(json);
-            if (camFlag == 1) {
+            if (object->kind && camFlag == 1) {
               ch = value;
             }
             else {
@@ -297,8 +298,8 @@ void read_scene(char* filename) {
           }
           else if (strcmp(key, "radius") == 0) {
             double value = next_number(json);
-            if (camFlag == 0 && objects[numObjects]->kind == 1) {
-              objects[numObjects]->sphere.radius = value;
+            if (object->kind == 1) {
+              object->sphere.radius = value;
             }
             else {
               fprintf(stderr, "Error: Unexpected 'radius' attribute on line %d.\n", line);
@@ -307,8 +308,8 @@ void read_scene(char* filename) {
           }
           else if (strcmp(key, "color") == 0) {
             double* value = next_vector(json);
-            if (camFlag == 0) {
-              memcpy(objects[numObjects]->color, value, sizeof(double) * 3);
+            if (object->kind >= 0) {
+              memcpy(object->color, value, sizeof(double) * 3);
             }
             else {
               fprintf(stderr, "Error: Unexpected 'color' attribute on line %d.\n", line);
@@ -317,11 +318,11 @@ void read_scene(char* filename) {
           }
           else if (strcmp(key, "position") == 0) {
             double* value = next_vector(json);
-            if (camFlag == 0 && objects[numObjects]->kind == 0) {
-              memcpy(objects[numObjects]->plane.position, value, sizeof(double) * 3);
+            if (object->kind == 0) {
+              memcpy(object->plane.position, value, sizeof(double) * 3);
             }
-            else if (camFlag == 0 && objects[numObjects]->kind == 1) {
-              memcpy(objects[numObjects]->sphere.position, value, sizeof(double) * 3);
+            else if (object->kind == 1) {
+              memcpy(object->sphere.position, value, sizeof(double) * 3);
             }
             else {
               fprintf(stderr, "Error: Unexpected 'position' attribute on line %d.\n", line);
@@ -330,8 +331,8 @@ void read_scene(char* filename) {
           }
           else if (strcmp(key, "normal") == 0) {
             double* value = next_vector(json);
-            if (camFlag == 0 && objects[numObjects]->kind == 0) {
-              memcpy(objects[numObjects]->plane.normal, value, sizeof(double) * 3);
+            if (object->kind == 0) {
+              memcpy(object->plane.normal, value, sizeof(double) * 3);
             }
             else {
               fprintf(stderr, "Error: Unexpected 'normal' attribute on line %d.\n", line);
@@ -350,10 +351,9 @@ void read_scene(char* filename) {
         }
       } // end loop through object fields
 
-      if (camFlag == 1) {
-        camFlag = 0; // finished processing camera
-      }
-      else {
+      // place object into the array of objects
+      if (object->kind >= 0) {
+        objects[numObjects] = object;
         numObjects++;
       }
 
@@ -372,7 +372,6 @@ void read_scene(char* filename) {
       }
     }
   } // end loop through all objects in scene
-  objects[numObjects] = NULL;
 }
 
 int main(int args, char** argv) {
@@ -382,22 +381,9 @@ int main(int args, char** argv) {
     exit(1);
   }
 
-  // allocate memory for the objects in the object array
-  for (int i = 0; i < maxObjects; i++) {
-    objects[i] = malloc(sizeof(Object));
-  }
-
   M = atoi(argv[2]); // save height
   N = atoi(argv[1]); // save width
   read_scene(argv[3]);
-  //print_objs();
   raycast(argv[4]);
   return 0; // exit success
-}
-
-void print_objs() {
-  for (int i = 0; i < numObjects; i++) {
-    printf("%d, %lf, %lf, %lf\n", objects[i]->kind, objects[i]->color[0], objects[i]->color[1], objects[i]->color[2]);
-  }
-  printf("Num objs: %d\n", numObjects);
 }
