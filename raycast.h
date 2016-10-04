@@ -7,6 +7,7 @@
 // Hard coded Program Constants
 #define maxColor 255
 #define format '3' // format of output image data
+#define maxObjects 128
 
 // Structure to hold RGB pixel data
 typedef struct RGBpixel {
@@ -19,12 +20,10 @@ typedef struct {
   double color[3];
   union {
     struct {
-      char color;
       double position[3];
       double normal[3];
     } plane;
     struct {
-      char color;
       double position[3];
       double radius;
     } sphere;
@@ -38,7 +37,7 @@ int M; // height of image in pixels
 int N; // width of image in pixels
 
 // Global variables to hold general scene data
-Object** objects; // Global array to keep track of objects in the scene
+Object* objects[maxObjects]; // Global array to keep track of objects in the scene
 int numObjects; // index to keep track of number of objects in the scene
 double ch; // camera height
 double cw; // camera width
@@ -58,6 +57,8 @@ void read_scene(char* filename);
 void skip_ws(FILE* json);
 double sphere_intersection(double* Ro, double* Rd, double* C, double r);
 void writeP3(FILE* fh);
+
+void print_objs();
 
 // static inline functions
 static inline double sqr(double v) {

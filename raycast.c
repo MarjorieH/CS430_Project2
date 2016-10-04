@@ -56,7 +56,9 @@ void raycast(char* filename) {
   double pixheight = ch / M;
   double pixwidth = cw / N;
 
+  // initialize pixmap based on the number of pixels
   pixmap = malloc(sizeof(RGBpixel) * numPixels);
+
   int pixIndex = 0;
   for (int y = 0; y < M; y++) { // for each row
     double y_coord = cy - (ch/2) + pixheight * (y + 0.5); // y coord of the row
@@ -70,24 +72,25 @@ void raycast(char* filename) {
 
       double best_t = INFINITY;
       Object* object;
-      for (int i = 0; objects[i] != NULL; i++) {
+      for (int i = 0; i < numObjects; i++) { // loop through the array of objects in the scene
+
         double t = 0;
 
-        switch (objects[i]->kind) {
-          case 0:
+        if (objects[i]->kind == 0) {
           t = plane_intersection(Ro, Rd, objects[i]->plane.position, objects[i]->plane.normal);
-          break;
-          case 1:
+        }
+        else if (objects[i]->kind == 1) {
           t = sphere_intersection(Ro, Rd, objects[i]->sphere.position, objects[i]->sphere.radius);
-          break;
-          default:
-          fprintf(stderr, "Unrecognized object.");
+        }
+        else {
+          fprintf(stderr, "Unrecognized object.\n");
           exit(1);
         }
+
         if (t > 0 && t < best_t) {
           best_t = t;
           object = malloc(sizeof(Object));
-          memcpy(object, objects[i], sizeof(Object));
+          object = objects[i];
         }
       }
       // place the pixel into the pixmap array
@@ -203,17 +206,17 @@ double* next_vector(FILE* json) {
   return v;
 }
 
+// parse a json file based on filename to fill up the scene file
 void read_scene(char* filename) {
+
+  int camFlag = 0;
   int c;
   FILE* json = fopen(filename, "r");
-
-  objects = malloc(sizeof(Object*) * 128); // allocate enough space for the scene
-
-
   if (json == NULL) {
     fprintf(stderr, "Error: Could not open file \"%s\"\n", filename);
     exit(1);
   }
+  numObjects = 0;
 
   skip_ws(json);
   expect_c(json, '['); // Find the beginning of the list
@@ -229,28 +232,28 @@ void read_scene(char* filename) {
     }
     if (c == '{') {
       skip_ws(json);
-
       // Parse the object
       char* key = next_string(json);
       if (strcmp(key, "type") != 0) {
         fprintf(stderr, "Error: Expected \"type\" key on line number %d.\n", line);
         exit(1);
       }
-
       skip_ws(json);
       expect_c(json, ':');
       skip_ws(json);
-
       char* value = next_string(json);
-
       if (strcmp(value, "camera") == 0) {
-        // do something with camera
+        // if (camFlag == 1) {
+        //   fprintf(stderr, "Error: Too many camera objects, see line: %d.\n", line);
+        //   exit(1);
+        // }
+        camFlag = 1;
       }
       else if (strcmp(value, "sphere") == 0) {
-        // do something with sphere
+        objects[numObjects]->kind = 1;
       }
       else if (strcmp(value, "plane") == 0) {
-        // do something with plane
+        objects[numObjects]->kind = 0;
       }
       else {
         fprintf(stderr, "Error: Unknown type, \"%s\", on line number %d.\n", value, line);
@@ -259,33 +262,85 @@ void read_scene(char* filename) {
 
       skip_ws(json);
 
-      while (1) {
-        // , }
+      while (1) { // loop through object fields
         c = next_c(json);
         if (c == '}') {
           // stop parsing this object
           break;
-        } else if (c == ',') {
+        }
+        else if (c == ',') {
           // read another field
           skip_ws(json);
           char* key = next_string(json);
           skip_ws(json);
           expect_c(json, ':');
           skip_ws(json);
-          if ((strcmp(key, "width") == 0) ||
-              (strcmp(key, "height") == 0) ||
-              (strcmp(key, "radius") == 0)) {
+          if (strcmp(key, "width") == 0) {
             double value = next_number(json);
+            if (camFlag == 1) {
+              cw = value;
+            }
+            else {
+              fprintf(stderr, "Error: Unexpected 'width' attribute on line %d.\n", line);
+              exit(1);
+            }
           }
-          else if ((strcmp(key, "color") == 0) ||
-                   (strcmp(key, "position") == 0) ||
-                   (strcmp(key, "normal") == 0)) {
+          else if (strcmp(key, "height") == 0) {
+            double value = next_number(json);
+            if (camFlag == 1) {
+              ch = value;
+            }
+            else {
+              fprintf(stderr, "Error: Unexpected 'height' attribute on line %d.\n", line);
+              exit(1);
+            }
+          }
+          else if (strcmp(key, "radius") == 0) {
+            double value = next_number(json);
+            if (camFlag == 0 && objects[numObjects]->kind == 1) {
+              objects[numObjects]->sphere.radius = value;
+            }
+            else {
+              fprintf(stderr, "Error: Unexpected 'radius' attribute on line %d.\n", line);
+              exit(1);
+            }
+          }
+          else if (strcmp(key, "color") == 0) {
             double* value = next_vector(json);
+            if (camFlag == 0) {
+              memcpy(objects[numObjects]->color, value, sizeof(double) * 3);
+            }
+            else {
+              fprintf(stderr, "Error: Unexpected 'color' attribute on line %d.\n", line);
+              exit(1);
+            }
+          }
+          else if (strcmp(key, "position") == 0) {
+            double* value = next_vector(json);
+            if (camFlag == 0 && objects[numObjects]->kind == 0) {
+              memcpy(objects[numObjects]->plane.position, value, sizeof(double) * 3);
+            }
+            else if (camFlag == 0 && objects[numObjects]->kind == 1) {
+              memcpy(objects[numObjects]->sphere.position, value, sizeof(double) * 3);
+            }
+            else {
+              fprintf(stderr, "Error: Unexpected 'position' attribute on line %d.\n", line);
+              exit(1);
+            }
+          }
+          else if (strcmp(key, "normal") == 0) {
+            double* value = next_vector(json);
+            if (camFlag == 0 && objects[numObjects]->kind == 0) {
+              memcpy(objects[numObjects]->plane.normal, value, sizeof(double) * 3);
+            }
+            else {
+              fprintf(stderr, "Error: Unexpected 'normal' attribute on line %d.\n", line);
+              exit(1);
+            }
           }
           else {
-            fprintf(stderr, "Error: Unknown property, \"%s\", on line %d.\n",
-            key, line);
-            //char* value = next_string(json);
+            fprintf(stderr, "Error: Unknown property, \"%s\", on line %d.\n", key, line);
+            exit(1);
           }
           skip_ws(json);
         }
@@ -293,7 +348,15 @@ void read_scene(char* filename) {
           fprintf(stderr, "Error: Unexpected value on line %d\n", line);
           exit(1);
         }
+      } // end loop through object fields
+
+      if (camFlag == 1) {
+        camFlag = 0; // finished processing camera
       }
+      else {
+        numObjects++;
+      }
+
       skip_ws(json);
       c = next_c(json);
       if (c == ',') {
@@ -308,19 +371,33 @@ void read_scene(char* filename) {
         exit(1);
       }
     }
-  }
+  } // end loop through all objects in scene
+  objects[numObjects] = NULL;
 }
 
 int main(int args, char** argv) {
 
-  if (args > 4) {
+  if (args != 5) {
     fprintf(stderr, "Usage: raycast width height input.json output.ppm");
     exit(1);
   }
 
-  M = (int)argv[2]; // save height
-  N = (int)argv[1]; // save width
+  // allocate memory for the objects in the object array
+  for (int i = 0; i < maxObjects; i++) {
+    objects[i] = malloc(sizeof(Object));
+  }
+
+  M = atoi(argv[2]); // save height
+  N = atoi(argv[1]); // save width
   read_scene(argv[3]);
+  //print_objs();
   raycast(argv[4]);
   return 0; // exit success
+}
+
+void print_objs() {
+  for (int i = 0; i < numObjects; i++) {
+    printf("%d, %lf, %lf, %lf\n", objects[i]->kind, objects[i]->color[0], objects[i]->color[1], objects[i]->color[2]);
+  }
+  printf("Num objs: %d\n", numObjects);
 }
