@@ -36,7 +36,7 @@ double sphere_intersection(double* Ro, double* Rd, double* C, double r) {
 double plane_intersection(double* Ro, double* Rd, double* P, double* N) {
   double D = -(N[0] * P[0] + N[1] * P[1] + N[2] * P[2]); // distance from origin to plane
   double t = -(N[0] * Ro[0] + N[1] * Ro[1] + N[2] * Ro[2] + D) /
-  (N[0] * Rd[0] + N[1] * Rd[1] + N[2] * Rd[2]);
+              (N[0] * Rd[0] + N[1] * Rd[1] + N[2] * Rd[2]);
 
   if (t > 0) return t;
 
@@ -51,20 +51,19 @@ void raycast(char* filename) {
   double cy = 0;
   double cz = 0;
 
-  numPixels = M * N;
+  numPixels = M * N; // total pixels for output image
 
   double pixheight = ch / M;
   double pixwidth = cw / N;
 
   // initialize pixmap based on the number of pixels
   pixmap = malloc(sizeof(RGBpixel) * numPixels);
+  int pixIndex = 0; // place in pixmap array
 
-  int pixIndex = 0;
   for (int y = 0; y < M; y++) { // for each row
     double y_coord = -(cy - (ch/2) + pixheight * (y + 0.5)); // y coord of the row
 
     for (int x = 0; x < N; x++) { // for each column
-
       double x_coord = cx - (cw/2) + pixwidth * (x + 0.5); // x coord of the column
       double Ro[3] = {cx, cy, cz}; // position of camera
       double Rd[3] = {x_coord, y_coord, 1}; // position of pixel
@@ -73,21 +72,18 @@ void raycast(char* filename) {
       double best_t = INFINITY;
       Object* object;
       for (int i = 0; i < numObjects; i++) { // loop through the array of objects in the scene
-
         double t = 0;
-
-        if (objects[i]->kind == 0) {
+        if (objects[i]->kind == 0) { // plane
           t = plane_intersection(Ro, Rd, objects[i]->plane.position, objects[i]->plane.normal);
         }
-        else if (objects[i]->kind == 1) {
+        else if (objects[i]->kind == 1) { // sphere
           t = sphere_intersection(Ro, Rd, objects[i]->sphere.position, objects[i]->sphere.radius);
         }
-        else {
+        else { // ???
           fprintf(stderr, "Unrecognized object.\n");
           exit(1);
         }
-
-        if (t > 0 && t < best_t) {
+        if (t > 0 && t < best_t) { // found a t value, save the object data
           best_t = t;
           object = malloc(sizeof(Object));
           object = objects[i];
@@ -99,7 +95,7 @@ void raycast(char* filename) {
         pixmap[pixIndex].G = (unsigned char)(object->color[1] * maxColor);
         pixmap[pixIndex].B = (unsigned char)(object->color[2] * maxColor);
       }
-      else { // make background pixels white
+      else { // make background pixels black
         pixmap[pixIndex].R = 0;
         pixmap[pixIndex].G = 0;
         pixmap[pixIndex].B = 0;
@@ -179,13 +175,14 @@ char* next_string(FILE* json) {
   return strdup(buffer);
 }
 
+// parse the next number in the json file
 double next_number(FILE* json) {
   double value;
   fscanf(json, "%lf", &value);
-  // Error check this..
   return value;
 }
 
+// parse the next vector in the json file (array of 3 doubles)
 double* next_vector(FILE* json) {
   double* v = malloc(3*sizeof(double));
   expect_c(json, '[');
@@ -204,7 +201,7 @@ double* next_vector(FILE* json) {
   return v;
 }
 
-// parse a json file based on filename to fill up the scene file
+// parse a json file based on filename and place any objects into object array
 void read_scene(char* filename) {
 
   int camFlag = 0;
@@ -224,7 +221,7 @@ void read_scene(char* filename) {
   while (1) {
     c = fgetc(json);
     if (c == ']') {
-      fprintf(stderr, "Error: This is the worst scene file EVER.\n");
+      fprintf(stderr, "Error: Empty object at line %d.\n", line);
       fclose(json);
       return;
     }
@@ -288,7 +285,7 @@ void read_scene(char* filename) {
           }
           else if (strcmp(key, "height") == 0) {
             double value = next_number(json);
-            if (object->kind && camFlag == 1) {
+            if (object->kind < 0 && camFlag == 1) {
               ch = value;
             }
             else {
@@ -377,7 +374,7 @@ void read_scene(char* filename) {
 int main(int args, char** argv) {
 
   if (args != 5) {
-    fprintf(stderr, "Usage: raycast width height input.json output.ppm");
+    fprintf(stderr, "Usage: raycast width height input.json output.ppm\n");
     exit(1);
   }
 
